@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#091724">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Белая орда наступает. Выживи в снежной пустоши, прокачай арсенал и останови ледяных медведей.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Whiteout Bears">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Whiteout: Bear Siege</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="gameCanvas" aria-label="Поле боя в снежной пустоши"></canvas>
+    <div id="damageVignette" class="damage-vignette" aria-hidden="true"></div>
+
+    <div id="hud" class="hud is-hidden">
+      <div class="hud-top">
+        <div class="survivor-panel">
+          <div class="survivor-portrait" aria-hidden="true">
+            <svg viewBox="0 0 48 48">
+              <path d="M8 39c0-9 5-14 16-14s16 5 16 14v4H8v-4Z" fill="#bd332f"/>
+              <path d="M12 39c0-6 3-9 12-9s12 3 12 9" fill="none" stroke="#f2f7fb" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="24" cy="20" r="11" fill="#f2d5bd"/>
+              <path d="M11 20c0-9 5-13 13-13s13 4 13 13c0 2-2 5-4 4-2-4-4-6-9-6s-7 2-9 6c-3 1-4-2-4-4Z" fill="#dceaf4"/>
+              <path d="M15 35c2-4 5-5 9-5s7 1 9 5" fill="none" stroke="#8d2425" stroke-width="2"/>
+            </svg>
+            <span id="playerLevelBadge">1</span>
+          </div>
+          <div class="survivor-bars">
+            <div class="survivor-name-row">
+              <span class="survivor-name">ВЫЖИВШИЙ</span>
+              <span id="hpText" class="hp-text">100 / 100</span>
+            </div>
+            <div class="status-bar health-bar">
+              <i id="hpFill"></i>
+              <span id="hpLagFill" class="hp-lag"></span>
+            </div>
+            <div class="status-bar xp-bar">
+              <i id="xpFill"></i>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-actions">
+          <div class="coin-pill coin-pill--hud">
+            <span class="coin-icon" aria-hidden="true"></span>
+            <span id="runCoins">0</span>
+          </div>
+          <button id="pauseButton" class="hud-btn" type="button" aria-label="Пауза">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13M16 5.5v13" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="run-meta">
+        <div class="run-chip">
+          <span class="run-chip__label">ВОЛНА</span>
+          <strong id="waveValue">1</strong>
+        </div>
+        <div class="run-time" aria-label="Время вылазки">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4.5l3 1.7M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span id="runTime">00:00</span>
+        </div>
+        <div class="run-chip run-chip--kills">
+          <span class="run-chip__label">УБИТО</span>
+          <strong id="killValue">0</strong>
+        </div>
+      </div>
+
+      <div id="bossHud" class="boss-hud is-hidden">
+        <div class="boss-title-row">
+          <span class="boss-skull" aria-hidden="true">☠</span>
+          <span id="bossName">ЛЕДЯНОЙ ГИГАНТ</span>
+          <span id="bossHpText">100%</span>
+        </div>
+        <div class="boss-track"><i id="bossFill"></i></div>
+      </div>
+
+      <div id="waveBanner" class="wave-banner" aria-live="polite"></div>
+
+      <div class="game-controls">
+        <div class="joystick-zone">
+          <div id="joystick" class="joystick" role="group" aria-label="Джойстик движения">
+            <span class="joystick-mark joystick-mark--up"></span>
+            <span class="joystick-mark joystick-mark--down"></span>
+            <span class="joystick-mark joystick-mark--left"></span>
+            <span class="joystick-mark joystick-mark--right"></span>
+            <div id="joystickKnob" class="joystick-knob">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 6l6 7h-4v6h4l-6 7-6-7h4v-6H10l6-7Z" fill="currentColor"/></svg>
+            </div>
+          </div>
+          <span class="control-label">ДВИЖЕНИЕ</span>
+        </div>
+
+        <div class="ability-cluster">
+          <button id="bombButton" class="ability ability--bomb" type="button" aria-label="Взрыв, перезарядка">
+            <span class="ability__icon">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="15" cy="18" r="9" fill="currentColor"/><path d="M20 10c1-3 4-4 6-2M22 7l-2-4M25 9l4-1" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M22 4.5c1.5 0 2.5 1 2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </span>
+            <span class="ability__label">ВЗРЫВ</span>
+            <span id="bombCdText" class="ability__cd"></span>
+          </button>
+          <button id="dashButton" class="ability ability--dash" type="button" aria-label="Рывок, перезарядка">
+            <span class="ability__icon">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M19 4c5 4 7 8 5 13-1 3-3 5-6 6l-2 5-3-4-5-1 4-3c-1-4 0-8 2-11 1-2 3-3 5-5Z" fill="currentColor"/><path d="M4 20h8M2 25h8M7 15h6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </span>
+            <span class="ability__label">РЫВОК</span>
+            <span id="dashCdText" class="ability__cd"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <section id="menuScreen" class="screen menu-screen is-active" aria-label="Главное меню">
+      <div class="menu-scrim" aria-hidden="true"></div>
+      <header class="menu-top">
+        <div class="mini-brand">
+          <span class="mini-brand__snow" aria-hidden="true">✦</span>
+          <span>ПОЛЯРНАЯ ЭКСПЕДИЦИЯ</span>
+        </div>
+        <div class="menu-top__right">
+          <button id="menuCoinsButton" class="coin-pill" type="button" aria-label="Открыть арсенал">
+            <span class="coin-icon" aria-hidden="true"></span>
+            <span id="menuCoins">0</span>
+          </button>
+          <button id="settingsButton" class="round-icon-btn" type="button" aria-label="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.87 2.87-.06-.06a1.7 1.7 0 0 0-2.87 1.2V21h-4.06v-.08A1.7 1.7 0 0 0 7.1 19.7l-.06.06-2.87-2.87.06-.06A1.7 1.7 0 0 0 3 15H3v-4.06h.08A1.7 1.7 0 0 0 4.3 8.1l-.06-.06L7.1 5.17l.06.06a1.7 1.7 0 0 0 1.87.34H9v-4.6h4.06v.08a1.7 1.7 0 0 0 2.87 1.2l.06-.06 2.87 2.87-.06.06a1.7 1.7 0 0 0 1.6 2.88H21V12h-.08A1.7 1.7 0 0 0 19.4 15Z" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="menu-content">
+        <div class="menu-logo">
+          <div class="logo-kicker"><span></span>ЛЕДЯНАЯ ПУСТОШЬ<span></span></div>
+          <h1 class="logo-title">WHITEOUT</h1>
+          <div class="logo-subrow">
+            <span class="logo-rule"></span>
+            <span class="logo-badge">BEAR SIEGE</span>
+            <span class="logo-rule"></span>
+          </div>
+          <p class="menu-tagline">Белая орда уже близко. Выживи любой ценой.</p>
+          <div id="bestChip" class="best-chip">
+            <span class="best-chip__icon" aria-hidden="true">◆</span>
+            <span>Рекорд: <strong id="bestTime">00:00</strong></span>
+          </div>
+        </div>
+
+        <div class="menu-actions">
+          <button id="playButton" class="play-button" type="button">
+            <span class="play-button__icon">
+              <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M12 8.5v15l11-7.5-11-7.5Z" fill="currentColor"/></svg>
+            </span>
+            <span class="play-button__text">
+              <strong>В БОЙ</strong>
+              <small>Начать вылазку</small>
+            </span>
+            <span class="play-button__shine" aria-hidden="true"></span>
+          </button>
+
+          <div class="menu-secondary">
+            <button id="armoryButton" class="menu-tile" type="button">
+              <span class="menu-tile__icon menu-tile__icon--weapon">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 19.5 25 7l3 4-6 3.2-8.2 9.1-4.2-1.7L7 25H3l2.4-4.4L4 19.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.5 13.5 20 18" stroke="currentColor" stroke-width="1.8"/></svg>
+              </span>
+              <span><strong>АРСЕНАЛ</strong><small>Оружие и навыки</small></span>
+            </button>
+            <button id="guideButton" class="menu-tile" type="button">
+              <span class="menu-tile__icon menu-tile__icon--guide">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12.7 12.3a3.4 3.4 0 1 1 5.7 2.5c-1.3 1.1-2.2 1.9-2.2 3.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="22.4" r="1.25" fill="currentColor"/></svg>
+              </span>
+              <span><strong>КАК ИГРАТЬ</strong><small>Правила выживания</small></span>
+            </button>
+          </div>
+
+          <button id="installButton" class="install-button is-hidden" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Установить игру
+          </button>
+          <p class="menu-footnote">Работает без интернета · iPhone и Android</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="armoryScreen" class="screen panel-screen" aria-label="Арсенал">
+      <div class="screen-scroll">
+        <header class="panel-head">
+          <button id="armoryBackButton" class="round-icon-btn panel-back" type="button" aria-label="Назад">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="panel-heading">
+            <span class="eyebrow">БАЗА ВЫЖИВШЕГО</span>
+            <h2>АРСЕНАЛ</h2>
+          </div>
+          <div class="coin-pill coin-pill--panel">
+            <span class="coin-icon" aria-hidden="true"></span>
+            <span class="armory-coins">0</span>
+          </div>
+        </header>
+
+        <div class="tab-bar" role="tablist" aria-label="Разделы арсенала">
+          <button id="weaponsTab" class="tab-button is-active" type="button" role="tab" aria-selected="true" data-tab="weapons">ОРУЖИЕ</button>
+          <button id="skillsTab" class="tab-button" type="button" role="tab" aria-selected="false" data-tab="skills">НАВЫКИ</button>
+        </div>
+
+        <div id="armoryContent" class="armory-content"></div>
+        <p class="panel-footnote">Монеты зарабатываются в вылазках. Уровни оружия и навыки сохраняются.</p>
+      </div>
+    </section>
+
+    <section id="guideScreen" class="screen panel-screen" aria-label="Как играть">
+      <div class="screen-scroll">
+        <header class="panel-head">
+          <button id="guideBackButton" class="round-icon-btn panel-back" type="button" aria-label="Назад">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="panel-heading">
+            <span class="eyebrow">ИНСТРУКТАЖ</span>
+            <h2>КАК ИГРАТЬ</h2>
+          </div>
+        </header>
+
+        <div class="guide-hero">
+          <div class="guide-hero__icon" aria-hidden="true">❄</div>
+          <div>
+            <h3>Продержись как можно дольше</h3>
+            <p>Ты один против белой орды. Оружие стреляет само — управляй выжившим, уклоняйся и собирай трофеи.</p>
+          </div>
+        </div>
+
+        <div class="guide-grid">
+          <article class="guide-card">
+            <span class="guide-card__num">01</span>
+            <div>
+              <h4>Двигайся</h4>
+              <p>Тяни джойстик в левом нижнем углу. На компьютере — WASD или стрелки.</p>
+            </div>
+          </article>
+          <article class="guide-card">
+            <span class="guide-card__num">02</span>
+            <div>
+              <h4>Стреляй автоматически</h4>
+              <p>Винтовка сама выбирает ближайшего медведя. Подбирайся ближе, чтобы попадать чаще.</p>
+            </div>
+          </article>
+          <article class="guide-card">
+            <span class="guide-card__num">03</span>
+            <div>
+              <h4>Используй способности</h4>
+              <p>Зелёная кнопка — рывок и краткая неуязвимость. Оранжевая — взрыв по площади.</p>
+            </div>
+          </article>
+          <article class="guide-card">
+            <span class="guide-card__num">04</span>
+            <div>
+              <h4>Прокачивайся</h4>
+              <p>Собирай синие кристаллы. Каждый новый уровень даёт выбор из трёх усилений.</p>
+            </div>
+          </article>
+          <article class="guide-card">
+            <span class="guide-card__num">05</span>
+            <div>
+              <h4>Осторожно: босс</h4>
+              <p>Раз в минуту появляется ледяной гигант. Следи за его рывком и не стой на месте.</p>
+            </div>
+          </article>
+          <article class="guide-card">
+            <span class="guide-card__num">06</span>
+            <div>
+              <h4>Возвращайся сильнее</h4>
+              <p>За каждый рейд дают монеты. Трать их в арсенале на новое оружие и навыки.</p>
+            </div>
+          </article>
+        </div>
+
+        <button id="guideDoneButton" class="btn-primary guide-done" type="button">ПОНЯТНО</button>
+      </div>
+    </section>
+
+    <section id="settingsScreen" class="screen panel-screen" aria-label="Настройки">
+      <div class="screen-scroll">
+        <header class="panel-head">
+          <button id="settingsBackButton" class="round-icon-btn panel-back" type="button" aria-label="Назад">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="panel-heading">
+            <span class="eyebrow">ПОЛЯРНАЯ СТАНЦИЯ</span>
+            <h2>НАСТРОЙКИ</h2>
+          </div>
+        </header>
+
+        <div class="settings-list">
+          <div class="setting-row">
+            <div>
+              <strong>Звук</strong>
+              <small>Выстрелы, способности и атмосфера</small>
+            </div>
+            <button id="soundToggle" class="toggle is-on" type="button" role="switch" aria-checked="true" aria-label="Звук"><i></i></button>
+          </div>
+          <div class="setting-row">
+            <div>
+              <strong>Вибрация</strong>
+              <small>Отклик при уроне и боссе</small>
+            </div>
+            <button id="vibrationToggle" class="toggle is-on" type="button" role="switch" aria-checked="true" aria-label="Вибрация"><i></i></button>
+          </div>
+          <div class="setting-row setting-row--stacked">
+            <div>
+              <strong>Установка на телефон</strong>
+              <small id="installHelp">Добавь игру на главный экран, чтобы играть как в приложении.</small>
+            </div>
+            <button id="installSettingsButton" class="btn-secondary" type="button">УСТАНОВИТЬ</button>
+          </div>
+          <div class="setting-row setting-row--stacked">
+            <div>
+              <strong>Сброс прогресса</strong>
+              <small>Удалит монеты, рекорды, оружие и навыки.</small>
+            </div>
+            <button id="resetButton" class="btn-secondary btn-secondary--danger" type="button">СБРОСИТЬ</button>
+          </div>
+        </div>
+
+        <div class="settings-about">
+          <strong>WHITEOUT: BEAR SIEGE</strong>
+          <p>Оригинальная мобильная мини-игра. Все медведи и эффекты нарисованы на canvas. Прогресс хранится на устройстве.</p>
+          <span>v1.0 · Офлайн-режим</span>
+        </div>
+      </div>
+    </section>
+
+    <div id="pauseOverlay" class="modal-layer is-hidden" aria-hidden="true">
+      <div class="modal-panel pause-panel" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+        <span class="modal-kicker">ОПЕРАЦИЯ ПРИОСТАНОВЛЕНА</span>
+        <h2 id="pauseTitle">ПАУЗА</h2>
+        <div class="pause-actions">
+          <button id="pauseResumeButton" class="btn-primary" type="button">ПРОДОЛЖИТЬ</button>
+          <button id="pauseSoundButton" class="btn-secondary" type="button">ЗВУК: ВКЛ</button>
+          <button id="pauseQuitButton" class="btn-secondary btn-secondary--danger" type="button">ЗАВЕРШИТЬ РЕЙД</button>
+        </div>
+        <div class="pause-tip">Подсказка: во время рывка ты неуязвим.</div>
+      </div>
+    </div>
+
+    <div id="levelupOverlay" class="modal-layer levelup-layer is-hidden" aria-hidden="true">
+      <div class="levelup-wrap" role="dialog" aria-modal="true" aria-labelledby="levelupTitle">
+        <div class="levelup-header">
+          <span class="levelup-kicker">НОВЫЙ УРОВЕНЬ <b id="levelupLevel">2</b></span>
+          <h2 id="levelupTitle">ВЫБЕРИ УСИЛЕНИЕ</h2>
+          <p>Стань сильнее, пока белая орда не опомнилась.</p>
+        </div>
+        <div id="upgradeCards" class="upgrade-cards"></div>
+        <p class="levelup-hint">Нажми на карту, чтобы продолжить</p>
+      </div>
+    </div>
+
+    <div id="gameoverOverlay" class="modal-layer is-hidden" aria-hidden="true">
+      <div class="modal-panel gameover-panel" role="dialog" aria-modal="true" aria-labelledby="gameoverTitle">
+        <div class="gameover-emblem" aria-hidden="true">
+          <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="32" fill="rgba(255,91,87,.08)" stroke="rgba(255,91,87,.35)" stroke-width="1.4"/><path d="M36 54S18 43 18 29.5C18 23 23 19 28.5 19c3.2 0 6 1.7 7.5 4.2C37.5 20.7 40.3 19 43.5 19 49 19 54 23 54 29.5 54 43 36 54 36 54Z" fill="rgba(255,91,87,.18)" stroke="#ff6b67" stroke-width="2" stroke-linejoin="round"/><path d="m29 35 14 10m0-10L29 45" stroke="#ff6b67" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <span id="gameoverKicker" class="modal-kicker">ЭКСПЕДИЦИЯ ЗАВЕРШЕНА</span>
+        <h2 id="gameoverTitle">БЕЛАЯ МГЛА ПОБЕДИЛА</h2>
+        <p id="gameoverSubtitle" class="gameover-subtitle">Ты сражался достойно. Арсенал ждёт следующего рейда.</p>
+
+        <div class="record-ribbon is-hidden" id="newRecordRibbon">НОВЫЙ РЕКОРД</div>
+
+        <div class="result-grid">
+          <div class="result-item"><span>ВРЕМЯ</span><strong id="resultTime">00:00</strong></div>
+          <div class="result-item"><span>ВОЛНА</span><strong id="resultWave">1</strong></div>
+          <div class="result-item"><span>УБИТО</span><strong id="resultKills">0</strong></div>
+          <div class="result-item"><span>БОССОВ</span><strong id="resultBosses">0</strong></div>
+        </div>
+
+        <div class="reward-row">
+          <div>
+            <span>НАГРАДА ЗА РЕЙД</span>
+            <strong id="rewardCoins">+0</strong>
+          </div>
+          <span class="coin-icon coin-icon--lg" aria-hidden="true"></span>
+        </div>
+
+        <div class="gameover-actions">
+          <button id="retryButton" class="btn-primary" type="button">ЕЩЁ РАЗ</button>
+          <div class="gameover-actions__row">
+            <button id="gameoverArmoryButton" class="btn-secondary" type="button">АРСЕНАЛ</button>
+            <button id="gameoverMenuButton" class="btn-secondary" type="button">В МЕНЮ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirmOverlay" class="modal-layer is-hidden" aria-hidden="true">
+      <div class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <h2 id="confirmTitle">СБРОСИТЬ ПРОГРЕСС?</h2>
+        <p>Монеты, рекорды и все улучшения будут удалены безвозвратно.</p>
+        <div class="confirm-actions">
+          <button id="confirmCancelButton" class="btn-secondary" type="button">ОТМЕНА</button>
+          <button id="confirmResetButton" class="btn-primary btn-primary--danger" type="button">СБРОСИТЬ</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+  </div>
+
+  <script src="game.js" defer></script>
+</body>
+</html>
